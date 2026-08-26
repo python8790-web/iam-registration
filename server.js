@@ -721,7 +721,169 @@ app.post("/api/verify-login-otp", (req, res) => {
 app.get(/.*/, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
+// ===============================
+// LOGIN
+// ===============================
 
+app.post("/api/login", async (req, res) => {
+  try {
+    const { email, password, rememberMe } = req.body;
+
+    const normalizedEmail =
+      typeof email === "string"
+        ? email.trim().toLowerCase()
+        : "";
+
+    if (!normalizedEmail || typeof password !== "string") {
+      return res.status(400).json({
+        message: "Email and password are required."
+      });
+    }
+
+    const user = users.get(normalizedEmail);
+
+    // Generic error prevents revealing whether
+    // an email account exists.
+    if (!user) {
+      return res.status(401).json({
+        message: "Invalid email or password."
+      });
+    }
+
+    // Create login security fields if they don't exist.
+    if (typeof user.failedLoginAttempts !== "number") {
+      user.failedLoginAttempts = 0;
+    }
+
+    if (!user.lockedUntil) {
+      user.lockedUntil = null;
+    }
+
+    // Temporary lockout: 5 minutes
+    if (
+      user.lockedUntil &&
+      Date.now() < user.lockedUntil
+    ) {
+      const remaining =
+        Math.ceil(
+          (user.lockedUntil - Date.now()) / 1000
+        );
+
+      return res.status(423).json({
+        message:
+          "Account temporarily locked. Please try again later.",
+        locked: true,
+        retryAfter: remaining
+      });
+    }
+
+    // Clear expired lock
+    if (
+      user.lockedUntil &&
+      Date.now() >= user.lockedUntil
+    ) {
+      user.lockedUntil = null;
+      user.failedLoginAttempts = 0;
+    }
+
+    const passwordCorrect =
+      await bcrypt.compare(
+        password,
+        user.passwordHash
+      );
+
+    if (!passwordCorrect) {
+
+      user.failedLoginAttempts += 1;
+
+      // Lock after 5 failed attempts
+      if (user.failedLoginAttempts >= 5) {
+
+        user.lockedUntil =
+          Date.now() + (5 * 60 * 1000);
+
+        user.failedLoginAttempts = 0;
+
+        return res.status(423).json({
+          message:
+            "Too many failed attempts. Your account is temporarily locked.",
+          locked: true
+        });
+      }
+
+      return res.status(401).json({
+        message: "Invalid email or password.",
+        attemptsRemaining:
+          5 - user.failedLoginAttempts
+      });
+    }
+
+    // Correct credentials
+    user.failedLoginAttempts = 0;
+    user.lockedUntil = null;
+
+    // Registration must be completely verified
+    if (
+      !user.emailVerified ||
+      !user.mobileVerified ||
+      !user.mfaEnabled
+    ) {
+      return res.status(403).json({
+        message:
+          "Your account registration is incomplete."
+      });
+    }
+
+    // Generate login MFA OTP
+    const challengeId =
+      crypto.randomUUID();
+
+    const otp =
+      generateOtp();
+
+    challenges.set(challengeId, {
+      challengeId,
+      userId: user.id,
+      channel: "email",
+      purpose: "login",
+      otpHash:
+        crypto
+          .createHash("sha256")
+          .update(otp)
+          .digest("hex"),
+      expiresAt:
+        Date.now() + OTP_EXPIRY_MS,
+      attempts: 0,
+      used: false
+    });
+
+    console.log("\n[SIMULATED LOGIN EMAIL]");
+    console.log(`To: ${user.email}`);
+    console.log(`OTP: ${otp}`);
+    console.log(`Challenge ID: ${challengeId}\n`);
+
+    return res.json({
+      message:
+        "Credentials verified. MFA is required.",
+      mfaRequired: true,
+      method: "email",
+      challengeId,
+      rememberMe: rememberMe === true
+    });
+
+  } catch (error) {
+
+    console.error(
+      "Login error:",
+      error
+    );
+
+    return res.status(500).json({
+      message:
+        "Unable to process login."
+    });
+  }
+});
 app.listen(PORT, () => {
   console.log(`IAM registration app running at http://localhost:${PORT}`);
 });
