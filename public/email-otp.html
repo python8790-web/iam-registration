@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Verify your email</title>
+
+    <link
+        rel="stylesheet"
+        href="email-otp.css"
+    >
+</head>
+
+<body>
+
+    <div class="page">
+
+        <div class="otp-card">
+
+            <!-- Back button -->
+            <button
+                class="back-button"
+                id="backButton"
+                type="button"
+            >
+                ←
+            </button>
+
+
+            <!-- Email icon -->
+            <div class="email-icon">
+                ✉
+            </div>
+
+
+            <h1>
+                Verify your email
+            </h1>
+
+
+            <p class="description">
+                We have sent a 6-digit code to
+                <br>
+
+                <strong id="emailAddress">
+                    your email
+                </strong>
+            </p>
+
+
+            <!-- OTP boxes -->
+            <div
+                class="otp-container"
+                id="otpContainer"
+            >
+
+                <input
+                    type="text"
+                    maxlength="1"
+                    inputmode="numeric"
+                    autocomplete="one-time-code"
+                >
+
+                <input
+                    type="text"
+                    maxlength="1"
+                    inputmode="numeric"
+                >
+
+                <input
+                    type="text"
+                    maxlength="1"
+                    inputmode="numeric"
+                >
+
+                <input
+                    type="text"
+                    maxlength="1"
+                    inputmode="numeric"
+                >
+
+                <input
+                    type="text"
+                    maxlength="1"
+                    inputmode="numeric"
+                >
+
+                <input
+                    type="text"
+                    maxlength="1"
+                    inputmode="numeric"
+                >
+
+            </div>
+
+
+            <!-- Error / success message -->
+            <div
+                id="message"
+                class="message"
+            ></div>
+
+
+            <!-- Expiry -->
+            <div
+                class="expiry"
+                id="expiry"
+            >
+                Code expires in
+                <strong>02:45</strong>
+            </div>
+
+
+            <!-- Resend -->
+            <button
+                class="resend-button"
+                id="resendButton"
+                type="button"
+                disabled
+            >
+                Resend code
+                <span id="resendTimer">
+                    (00:25)
+                </span>
+            </button>
+
+
+            <div class="help-text">
+                Didn't receive the code?
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <script src="email-otp.js"></script>
+
+</body>
+</html>

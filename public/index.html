@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Create your account | SecureID</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="page">
+    <section class="register-card" aria-labelledby="page-title">
+      <button class="back-button" type="button" aria-label="Go back">‹</button>
+
+      <div class="brand-mark" aria-hidden="true">S</div>
+
+      <header class="heading">
+        <h1 id="page-title">Create your account</h1>
+        <p>Let's get you started</p>
+      </header>
+
+      <form id="registrationForm" novalidate>
+        <div class="field">
+          <label for="fullName">Full Name</label>
+          <input
+            id="fullName"
+            name="fullName"
+            type="text"
+            autocomplete="name"
+            placeholder="Priya Sharma"
+          />
+          <small class="error" data-error-for="fullName"></small>
+        </div>
+
+        <div class="field">
+          <label for="email">Email</label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            autocomplete="email"
+            placeholder="priya.sharma@email.com"
+          />
+          <small class="error" data-error-for="email"></small>
+        </div>
+
+        <div class="field">
+          <label for="mobileNumber">Mobile Number</label>
+          <div class="phone-row">
+            <select id="countryCode" name="countryCode" aria-label="Country code">
+              <option value="+91">+91</option>
+              <option value="+1">+1</option>
+              <option value="+44">+44</option>
+              <option value="+61">+61</option>
+              <option value="+65">+65</option>
+            </select>
+            <input
+              id="mobileNumber"
+              name="mobileNumber"
+              type="tel"
+              inputmode="numeric"
+              autocomplete="tel-national"
+              placeholder="98765 43210"
+            />
+          </div>
+          <small class="error" data-error-for="mobileNumber"></small>
+        </div>
+
+        <div class="field">
+          <label for="password">Password</label>
+          <div class="password-wrap">
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autocomplete="new-password"
+              placeholder="••••••••••••"
+            />
+            <button id="togglePassword" class="eye-button" type="button" aria-label="Show password">
+              ◉
+            </button>
+          </div>
+          <small class="error" data-error-for="password"></small>
+        </div>
+
+        <div class="password-rules" aria-live="polite">
+          <p>Password must contain:</p>
+          <div class="rule" data-rule="length"><span>✓</span> At least 8 characters</div>
+          <div class="rule" data-rule="uppercase"><span>✓</span> 1 uppercase letter</div>
+          <div class="rule" data-rule="number"><span>✓</span> 1 number</div>
+          <div class="rule" data-rule="special"><span>✓</span> 1 special character</div>
+        </div>
+
+        <label class="terms">
+          <input id="termsAccepted" name="termsAccepted" type="checkbox" />
+          <span>
+            I agree to the
+            <a href="#" onclick="return false">Terms &amp; Conditions</a>
+            and
+            <a href="#" onclick="return false">Privacy Policy</a>
+          </span>
+        </label>
+        <small class="error terms-error" data-error-for="termsAccepted"></small>
+
+        <button id="createAccountButton" class="primary-button" type="submit">
+          <span class="button-label">Create Account</span>
+          <span class="spinner" aria-hidden="true"></span>
+        </button>
+
+        <div id="formMessage" class="form-message" role="alert"></div>
+      </form>
+
+      <p class="login-prompt">
+        Already have an account? <a href="/login.html">Login</a>
+      </p>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

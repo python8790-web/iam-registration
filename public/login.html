@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login | SecureID</title>
+  <link rel="stylesheet" href="login.css" />
+</head>
+<body>
+  <main class="login-page">
+    <section class="login-shell" aria-label="SecureID login">
+      <aside class="brand-panel">
+        <div class="brand-lock">♙</div>
+        <div class="brand-name">SecureID</div>
+        <p>Secure access<br />to your account</p>
+      </aside>
+
+      <section class="login-card">
+        <button id="backButton" class="back-button" type="button" aria-label="Go back">‹</button>
+
+        <div id="screen-login" class="screen active">
+          <div class="icon-circle blue"><span>♙</span></div>
+          <h1>Welcome back!</h1>
+          <p class="subtitle">Login to your account</p>
+
+          <form id="loginForm" novalidate>
+            <div class="input-wrap" id="emailWrap">
+              <span class="input-icon">♙</span>
+              <input id="email" type="email" autocomplete="username" placeholder="Email or Username" />
+              <span class="field-status" id="emailStatus"></span>
+            </div>
+
+            <div class="input-wrap" id="passwordWrap">
+              <span class="input-icon">≡</span>
+              <input id="password" type="password" autocomplete="current-password" placeholder="Password" />
+              <button id="togglePassword" type="button" class="eye" aria-label="Show password">◉</button>
+            </div>
+
+            <div class="login-options">
+              <label class="remember">
+                <input id="rememberMe" type="checkbox" />
+                <span>Remember me</span>
+              </label>
+              <a href="#" onclick="return false">Forgot password?</a>
+            </div>
+
+            <p id="loginError" class="message error"></p>
+
+            <button id="loginButton" class="primary" type="submit">Login</button>
+
+            <div class="or"><span>or</span></div>
+
+            <button class="google-button" type="button">
+              <strong>G</strong>
+              Continue with Google
+            </button>
+          </form>
+
+          <p class="create-account">New here? <a href="/">Create an account</a></p>
+        </div>
+
+        <div id="screen-method" class="screen">
+          <div class="icon-circle blue"><span>♙</span></div>
+          <h1>Verify your identity</h1>
+          <p class="subtitle">Choose a method to continue</p>
+
+          <div class="method-list">
+            <button class="method selected" data-method="email" type="button">
+              <span class="method-icon email">✉</span>
+              <span>
+                <strong>Email OTP</strong>
+                <small>Receive a code on your email</small>
+              </span>
+              <span class="radio"></span>
+            </button>
+
+            <button class="method" data-method="sms" type="button">
+              <span class="method-icon sms">▣</span>
+              <span>
+                <strong>SMS OTP</strong>
+                <small>Receive a code on your mobile</small>
+              </span>
+              <span class="radio"></span>
+            </button>
+
+            <button class="method" data-method="authenticator" type="button">
+              <span class="method-icon auth">♙</span>
+              <span>
+                <strong>Authenticator App</strong>
+                <small>Use code from authenticator app</small>
+              </span>
+              <span class="radio"></span>
+            </button>
+          </div>
+
+          <button id="continueMethod" class="primary" type="button">Continue</button>
+        </div>
+
+        <div id="screen-otp" class="screen">
+          <button id="otpBack" class="screen-back" type="button">‹</button>
+          <div class="icon-circle blue"><span>✉</span></div>
+          <h1>Email Verification</h1>
+          <p class="subtitle">
+            Enter the 6-digit code sent to<br />
+            <strong id="maskedEmail">priya.sharma@email.com</strong>
+          </p>
+
+          <div id="otpInputs" class="otp-inputs">
+            <input maxlength="1" inputmode="numeric" />
+            <input maxlength="1" inputmode="numeric" />
+            <input maxlength="1" inputmode="numeric" />
+            <input maxlength="1" inputmode="numeric" />
+            <input maxlength="1" inputmode="numeric" />
+            <input maxlength="1" inputmode="numeric" />
+          </div>
+
+          <p id="otpMessage" class="message"></p>
+
+          <p id="timerText" class="timer">Code expires in <strong>02:45</strong></p>
+          <button id="resendButton" class="link-button" type="button">Resend code <span>(00:25)</span></button>
+          <p class="receive-help">Didn't receive the code?</p>
+        </div>
+
+        <div id="screen-success" class="screen">
+          <div class="icon-circle success"><span>✓</span></div>
+          <h1>Welcome back!</h1>
+          <p class="subtitle">You have successfully signed in.</p>
+          <div class="success-box">
+            <div>✓ Identity verified</div>
+            <div>✓ MFA verified</div>
+            <div>✓ Session created</div>
+          </div>
+          <button class="primary" type="button" onclick="window.location.href='/'">Continue</button>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script src="login.js"></script>
+</body>
+</html>

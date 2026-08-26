@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+
+  <title>Verify your mobile | SecureID</title>
+
+  <link
+    rel="stylesheet"
+    href="sms-otp.css"
+  />
+</head>
+
+<body>
+
+  <main class="page">
+
+    <section class="otp-card">
+
+      <!-- Back -->
+      <button
+        id="backButton"
+        class="back"
+        type="button"
+        aria-label="Go back"
+      >
+        ‹
+      </button>
+
+
+      <!-- Phone Icon -->
+      <div
+        id="phoneIcon"
+        class="icon-circle"
+      >
+        ☎
+      </div>
+
+
+      <!-- Heading -->
+      <h1>
+        Verify your mobile
+      </h1>
+
+
+      <!-- Description -->
+      <p class="subtitle">
+
+        We have sent a 6-digit code to
+
+        <br />
+
+        <strong id="mobileNumber">
+          +91 •••• 43210
+        </strong>
+
+      </p>
+
+
+      <!-- OTP -->
+      <div
+        id="otpInputs"
+        class="otp-inputs"
+      >
+
+        <input
+          maxlength="1"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+        />
+
+        <input
+          maxlength="1"
+          inputmode="numeric"
+        />
+
+        <input
+          maxlength="1"
+          inputmode="numeric"
+        />
+
+        <input
+          maxlength="1"
+          inputmode="numeric"
+        />
+
+        <input
+          maxlength="1"
+          inputmode="numeric"
+        />
+
+        <input
+          maxlength="1"
+          inputmode="numeric"
+        />
+
+      </div>
+
+
+      <!-- Error / success -->
+      <div
+        id="message"
+        class="message"
+      ></div>
+
+
+      <!-- Expiry -->
+      <p
+        id="expiry"
+        class="expiry"
+      >
+        Code expires in
+        <strong>02:45</strong>
+      </p>
+
+
+      <!-- Resend -->
+      <button
+        id="resend"
+        class="resend"
+        type="button"
+      >
+        Resend code
+        <span id="resendTimer">
+          (00:25)
+        </span>
+      </button>
+
+
+      <!-- Change number -->
+      <p class="change-number">
+        Wrong number?
+        <button
+          id="changeNumber"
+          type="button"
+        >
+          Change
+        </button>
+      </p>
+
+    </section>
+
+  </main>
+
+
+  <script src="sms-otp.js"></script>
+
+</body>
+</html>

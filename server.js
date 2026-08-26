@@ -1,0 +1,727 @@
+const express = require("express");
+const path = require("path");
+const crypto = require("crypto");
+const bcrypt = require("bcryptjs");
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(express.json());
+app.use(express.static(path.join(__dirname, "public")));
+
+// Assignment/demo storage.
+// Replace these Maps with a database in the next stage.
+const users = new Map();
+const challenges = new Map();
+
+const OTP_EXPIRY_MS = 3 * 60 * 1000;
+const MAX_OTP_ATTEMPTS = 3;
+
+function validEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function validPassword(password) {
+  return (
+    typeof password === "string" &&
+    password.length >= 8 &&
+    /[A-Z]/.test(password) &&
+    /[a-z]/.test(password) &&
+    /\d/.test(password) &&
+    /[^A-Za-z0-9]/.test(password)
+  );
+}
+
+function validPhone(phone) {
+  return /^\d{7,15}$/.test(phone);
+}
+
+function generateOtp() {
+  return crypto.randomInt(100000, 1000000).toString();
+}
+
+app.post("/api/register", async (req, res) => {
+  try {
+    const {
+      fullName,
+      email,
+      countryCode,
+      mobileNumber,
+      password,
+      termsAccepted
+    } = req.body;
+
+    const normalizedEmail =
+      typeof email === "string" ? email.trim().toLowerCase() : "";
+    const normalizedName =
+      typeof fullName === "string" ? fullName.trim() : "";
+    const normalizedCountry =
+      typeof countryCode === "string" ? countryCode.trim() : "";
+    const normalizedMobile =
+      typeof mobileNumber === "string"
+        ? mobileNumber.replace(/\D/g, "")
+        : "";
+
+    const errors = {};
+
+    if (normalizedName.length < 2) {
+      errors.fullName = "Please enter your full name.";
+    }
+
+    if (!validEmail(normalizedEmail)) {
+      errors.email = "Enter a valid email address.";
+    }
+
+    if (!/^\+\d{1,4}$/.test(normalizedCountry)) {
+      errors.countryCode = "Enter a valid country code.";
+    }
+
+    if (!validPhone(normalizedMobile)) {
+      errors.mobileNumber = "Enter a valid mobile number.";
+    }
+
+    if (!validPassword(password)) {
+      errors.password =
+        "Password must contain 8+ characters, uppercase, lowercase, number and special character.";
+    }
+
+    if (termsAccepted !== true) {
+      errors.termsAccepted = "You must accept the Terms & Conditions and Privacy Policy.";
+    }
+
+    if (Object.keys(errors).length) {
+      return res.status(400).json({
+        message: "Please correct the highlighted fields.",
+        errors
+      });
+    }
+
+    if (users.has(normalizedEmail)) {
+      return res.status(409).json({
+        message: "An account with this email already exists.",
+        errors: { email: "Email is already registered." }
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    const userId = crypto.randomUUID();
+    users.set(normalizedEmail, {
+      id: userId,
+      fullName: normalizedName,
+      email: normalizedEmail,
+      countryCode: normalizedCountry,
+      mobileNumber: normalizedMobile,
+      passwordHash,
+      emailVerified: false,
+      mobileVerified: false,
+      mfaEnabled: false,
+      createdAt: new Date().toISOString()
+    });
+app.post("/api/verify-email-otp", (req, res) => {
+  try {
+    const { challengeId, otp } = req.body;
+
+    if (
+      typeof challengeId !== "string" ||
+      typeof otp !== "string" ||
+      !/^\d{6}$/.test(otp)
+    ) {
+      return res.status(400).json({
+        message: "Enter the 6-digit verification code."
+      });
+    }
+
+    const challenge = challenges.get(challengeId);
+
+    if (
+      !challenge ||
+      challenge.channel !== "email" ||
+      challenge.used
+    ) {
+      return res.status(400).json({
+        message: "This verification code is no longer valid."
+      });
+      
+    }
+
+    if (Date.now() > challenge.expiresAt) {
+      return res.status(410).json({
+        message: "Your verification code has expired.",
+        expired: true
+      });
+    }
+
+    if (challenge.attempts >= MAX_OTP_ATTEMPTS) {
+      return res.status(429).json({
+        message: "Maximum attempts reached. Please request a new code.",
+        maxAttempts: true
+      });
+    }
+
+    challenge.attempts += 1;
+
+    const otpHash = crypto
+      .createHash("sha256")
+      .update(otp)
+      .digest("hex");
+
+    if (otpHash !== challenge.otpHash) {
+      const remainingAttempts =
+        MAX_OTP_ATTEMPTS - challenge.attempts;
+
+      return res.status(401).json({
+        message: "Incorrect verification code.",
+        remainingAttempts
+      });
+    }
+
+    challenge.used = true;
+
+    const user = [...users.values()].find(
+      user => user.id === challenge.userId
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User account not found."
+      });
+    }
+
+    user.emailVerified = true;
+
+    return res.json({
+      message: "Email verified successfully.",
+      verified: true,
+      userId: user.id
+    });
+
+  } catch (error) {
+    console.error("Email OTP verification error:", error);
+
+    return res.status(500).json({
+      message: "Unable to verify the email code."
+    });
+  }
+});
+    const challengeId = crypto.randomUUID();
+    const otp = generateOtp();
+
+    challenges.set(challengeId, {
+      challengeId,
+      userId,
+      channel: "email",
+      otpHash: crypto.createHash("sha256").update(otp).digest("hex"),
+      expiresAt: Date.now() + OTP_EXPIRY_MS,
+      attempts: 0,
+      used: false
+    });
+
+    // Simulated email delivery for the assignment.
+    console.log("\n[SIMULATED EMAIL]");
+    console.log(`To: ${normalizedEmail}`);
+    console.log(`OTP: ${otp}`);
+    console.log(`Challenge ID: ${challengeId}\n`);
+
+    // IMPORTANT: the OTP is deliberately not returned to the browser.
+    return res.status(201).json({
+      message: "Account created. Email verification is required.",
+      challengeId,
+      next: "email-otp"
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Unable to create the account." });
+  }
+});
+// ---------------- REGISTRATION SMS OTP ----------------
+
+app.post("/api/send-sms-otp", (req, res) => {
+  const { userId } = req.body;
+
+  if (typeof userId !== "string") {
+    return res.status(400).json({
+      message: "A valid userId is required."
+    });
+  }
+
+  const user = [...users.values()].find(
+    candidate => candidate.id === userId
+  );
+
+  if (!user) {
+    return res.status(404).json({
+      message: "User account not found."
+    });
+  }
+
+  if (!user.emailVerified) {
+    return res.status(403).json({
+      message: "Please verify your email first."
+    });
+  }
+
+  const mobileNumber =
+    user.mobileNumber ||
+    user.mobile ||
+    user.phone;
+
+  if (!mobileNumber) {
+    return res.status(400).json({
+      message: "No mobile number is registered for this account."
+    });
+  }
+
+  const challengeId = crypto.randomUUID();
+  const otp = generateOtp();
+
+  challenges.set(challengeId, {
+    challengeId,
+    userId: user.id,
+    channel: "sms",
+    otpHash: crypto
+      .createHash("sha256")
+      .update(otp)
+      .digest("hex"),
+    expiresAt: Date.now() + OTP_EXPIRY_MS,
+    attempts: 0,
+    used: false
+  });
+
+  console.log("\n[SIMULATED SMS]");
+  console.log(`To: ${mobileNumber}`);
+  console.log(`OTP: ${otp}`);
+  console.log(`Challenge ID: ${challengeId}\n`);
+
+  return res.json({
+    message: "SMS verification code sent.",
+    challengeId,
+    mobileNumber: maskMobileNumber(mobileNumber),
+    expiresInSeconds: OTP_EXPIRY_MS / 1000
+  });
+});
+
+
+app.post("/api/verify-sms-otp", (req, res) => {
+  const { challengeId, otp } = req.body;
+
+  if (
+    typeof challengeId !== "string" ||
+    typeof otp !== "string" ||
+    !/^\d{6}$/.test(otp)
+  ) {
+    return res.status(400).json({
+      message: "Enter the 6-digit verification code."
+    });
+  }
+
+  const challenge = challenges.get(challengeId);
+
+  if (
+    !challenge ||
+    challenge.channel !== "sms" ||
+    challenge.used
+  ) {
+    return res.status(400).json({
+      message: "This verification code is no longer valid."
+    });
+  }
+
+  if (Date.now() > challenge.expiresAt) {
+    return res.status(410).json({
+      message: "Code expired.",
+      expired: true
+    });
+  }
+
+  if (challenge.attempts >= MAX_OTP_ATTEMPTS) {
+    return res.status(429).json({
+      message: "Maximum attempts reached. Please request a new code.",
+      maxAttempts: true
+    });
+  }
+
+  challenge.attempts += 1;
+
+  const incomingHash = crypto
+    .createHash("sha256")
+    .update(otp)
+    .digest("hex");
+
+  if (incomingHash !== challenge.otpHash) {
+    const remaining = Math.max(
+      0,
+      MAX_OTP_ATTEMPTS - challenge.attempts
+    );
+
+    return res.status(401).json({
+      message: "Incorrect code. Please try again.",
+      remainingAttempts: remaining
+    });
+  }
+
+  challenge.used = true;
+
+  const user = [...users.values()].find(
+    candidate => candidate.id === challenge.userId
+  );
+
+  if (!user) {
+    return res.status(404).json({
+      message: "User account not found."
+    });
+  }
+
+  user.mobileVerified = true;
+
+  return res.json({
+    message: "Mobile number verified successfully.",
+    verified: true,
+    userId: user.id,
+    next: "mfa-setup"
+  });
+});
+app.post("/api/complete-registration", (req, res) => {
+    try {
+
+        const { userId } = req.body;
+
+        if (!userId) {
+            return res.status(400).json({
+                message: "User ID is required."
+            });
+        }
+
+
+        const user =
+            [...users.values()].find(
+                user => user.id === userId
+            );
+
+
+        if (!user) {
+            return res.status(404).json({
+                message: "User not found."
+            });
+        }
+
+
+        if (!user.emailVerified) {
+            return res.status(403).json({
+                message:
+                    "Email verification is incomplete."
+            });
+        }
+
+
+        if (!user.mobileVerified) {
+            return res.status(403).json({
+                message:
+                    "Mobile verification is incomplete."
+            });
+        }
+
+
+        user.mfaEnabled = true;
+
+
+        return res.json({
+            message:
+                "MFA enabled successfully.",
+            mfaEnabled: true,
+            registrationComplete: true
+        });
+
+    } catch (error) {
+
+        console.error(
+            "Registration completion error:",
+            error
+        );
+
+        return res.status(500).json({
+            message:
+                "Unable to complete registration."
+        });
+    }
+});
+
+app.post("/api/resend-sms-otp", (req, res) => {
+  const { challengeId } = req.body;
+
+  if (typeof challengeId !== "string") {
+    return res.status(400).json({
+      message: "A valid challengeId is required."
+    });
+  }
+
+  const oldChallenge = challenges.get(challengeId);
+
+  if (
+    !oldChallenge ||
+    oldChallenge.channel !== "sms"
+  ) {
+    return res.status(404).json({
+      message: "Verification challenge not found."
+    });
+  }
+
+  const user = [...users.values()].find(
+    candidate => candidate.id === oldChallenge.userId
+  );
+
+  if (!user) {
+    return res.status(404).json({
+      message: "User account not found."
+    });
+  }
+
+  oldChallenge.used = true;
+
+  const mobileNumber =
+    user.mobileNumber ||
+    user.mobile ||
+    user.phone;
+
+  const newChallengeId = crypto.randomUUID();
+  const otp = generateOtp();
+
+  challenges.set(newChallengeId, {
+    challengeId: newChallengeId,
+    userId: user.id,
+    channel: "sms",
+    otpHash: crypto
+      .createHash("sha256")
+      .update(otp)
+      .digest("hex"),
+    expiresAt: Date.now() + OTP_EXPIRY_MS,
+    attempts: 0,
+    used: false
+  });
+
+  console.log("\n[SIMULATED SMS]");
+  console.log(`To: ${mobileNumber}`);
+  console.log(`OTP: ${otp}`);
+  console.log(`Challenge ID: ${newChallengeId}\n`);
+
+  return res.json({
+    message: "A new SMS verification code has been sent.",
+    challengeId: newChallengeId,
+    mobileNumber: maskMobileNumber(mobileNumber),
+    expiresInSeconds: OTP_EXPIRY_MS / 1000
+  });
+});
+
+
+function maskMobileNumber(number) {
+  const value = String(number);
+
+  if (value.length <= 4) {
+    return value;
+  }
+
+  return value.slice(0, 3) +
+    " " +
+    "•••• " +
+    value.slice(-4);
+}
+
+// ---------------- LOGIN ----------------
+
+const loginFailures = new Map();
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_MS = 5 * 60 * 1000;
+
+function getLoginFailure(email) {
+  return loginFailures.get(email) || { count: 0, lockedUntil: 0 };
+}
+
+function registerLoginFailure(email) {
+  const current = getLoginFailure(email);
+  current.count += 1;
+
+  if (current.count >= MAX_LOGIN_ATTEMPTS) {
+    current.lockedUntil = Date.now() + LOCKOUT_MS;
+  }
+
+  loginFailures.set(email, current);
+  return current;
+}
+
+function clearLoginFailures(email) {
+  loginFailures.delete(email);
+}
+
+function createOtpChallenge(user, channel = "email") {
+  const challengeId = crypto.randomUUID();
+  const otp = generateOtp();
+
+  challenges.set(challengeId, {
+    challengeId,
+    userId: user.id,
+    channel,
+    otpHash: crypto.createHash("sha256").update(otp).digest("hex"),
+    expiresAt: Date.now() + OTP_EXPIRY_MS,
+    attempts: 0,
+    used: false
+  });
+
+  console.log(`\n[SIMULATED ${channel.toUpperCase()}]`);
+  console.log(`To: ${channel === "email" ? user.email : user.countryCode + user.mobileNumber}`);
+  console.log(`OTP: ${otp}`);
+  console.log(`Challenge ID: ${challengeId}\n`);
+
+  return challengeId;
+}
+
+app.post("/api/login", async (req, res) => {
+  try {
+    const email =
+      typeof req.body.email === "string"
+        ? req.body.email.trim().toLowerCase()
+        : "";
+    const password =
+      typeof req.body.password === "string"
+        ? req.body.password
+        : "";
+
+    if (!validEmail(email) || !password) {
+      return res.status(400).json({
+        message: "Invalid email or password. Please try again."
+      });
+    }
+
+    const failure = getLoginFailure(email);
+
+    if (failure.lockedUntil > Date.now()) {
+      const seconds = Math.ceil((failure.lockedUntil - Date.now()) / 1000);
+      return res.status(423).json({
+        message: "Too many failed attempts. Please try again later.",
+        locked: true,
+        retryAfterSeconds: seconds
+      });
+    }
+
+    const user = users.get(email);
+    const passwordMatches = user
+      ? await bcrypt.compare(password, user.passwordHash)
+      : false;
+
+    if (!user || !passwordMatches) {
+      const updated = registerLoginFailure(email);
+      const remaining = Math.max(0, MAX_LOGIN_ATTEMPTS - updated.count);
+
+      return res.status(401).json({
+        message: "Invalid email or password. Please try again.",
+        remainingAttempts: remaining
+      });
+    }
+
+    clearLoginFailures(email);
+
+    if (!user.mfaEnabled) {
+      return res.status(403).json({
+        message: "MFA is not enabled for this account yet.",
+        code: "MFA_NOT_ENABLED"
+      });
+    }
+
+    // For now email is the default method, matching the supplied design.
+    const challengeId = createOtpChallenge(user, "email");
+
+    return res.json({
+      message: "Verify your identity.",
+      mfaRequired: true,
+      method: "email",
+      challengeId,
+      maskedEmail: user.email.replace(
+        /^(.{2}).*(@.*)$/,
+        "$1••••$2"
+      )
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      message: "Unable to process login."
+    });
+  }
+});
+
+app.post("/api/verify-login-otp", (req, res) => {
+  const {
+    challengeId,
+    otp
+  } = req.body;
+
+  if (
+    typeof challengeId !== "string" ||
+    typeof otp !== "string" ||
+    !/^\d{6}$/.test(otp)
+  ) {
+    return res.status(400).json({
+      message: "Enter the 6-digit verification code."
+    });
+  }
+
+  const challenge = challenges.get(challengeId);
+
+  if (!challenge || challenge.used) {
+    return res.status(400).json({
+      message: "This verification code is no longer valid."
+    });
+  }
+
+  if (Date.now() > challenge.expiresAt) {
+    return res.status(410).json({
+      message: "Code expired.",
+      expired: true
+    });
+  }
+
+  if (challenge.attempts >= MAX_OTP_ATTEMPTS) {
+    return res.status(429).json({
+      message: "Maximum attempts reached. Please request a new code.",
+      maxAttempts: true
+    });
+  }
+
+  challenge.attempts += 1;
+
+  const incomingHash = crypto
+    .createHash("sha256")
+    .update(otp)
+    .digest("hex");
+
+  if (incomingHash !== challenge.otpHash) {
+    const remaining = Math.max(0, MAX_OTP_ATTEMPTS - challenge.attempts);
+
+    return res.status(401).json({
+      message: "Incorrect code. Please try again.",
+      remainingAttempts: remaining
+    });
+  }
+
+  challenge.used = true;
+
+  const user = [...users.values()].find(
+    candidate => candidate.id === challenge.userId
+  );
+
+  return res.json({
+    message: "Login successful.",
+    authenticated: true,
+    user: {
+      id: user.id,
+      fullName: user.fullName,
+      email: user.email
+    }
+  });
+});
+
+app.get(/.*/, (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+app.listen(PORT, () => {
+  console.log(`IAM registration app running at http://localhost:${PORT}`);
+});
