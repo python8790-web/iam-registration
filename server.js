@@ -2,9 +2,12 @@ const express = require("express");
 const path = require("path");
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
+const cookieParser = require("cookie-parser");
 
 const app = express();
+
 const PORT = process.env.PORT || 3000;
+app.use(cookieParser());
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
@@ -13,6 +16,7 @@ app.use(express.static(path.join(__dirname, "public")));
 // Replace these Maps with a database in the next stage.
 const users = new Map();
 const challenges = new Map();
+const sessions = new Map();
 
 const OTP_EXPIRY_MS = 3 * 60 * 1000;
 const MAX_OTP_ATTEMPTS = 3;
@@ -881,6 +885,127 @@ app.post("/api/login", async (req, res) => {
     return res.status(500).json({
       message:
         "Unable to process login."
+    });
+  }
+});
+// ===============================
+// VERIFY LOGIN OTP
+// ===============================
+
+app.post("/api/verify-login-otp", (req, res) => {
+  try {
+    const { challengeId, otp, rememberMe } = req.body;
+
+    if (
+      typeof challengeId !== "string" ||
+      typeof otp !== "string" ||
+      !/^\d{6}$/.test(otp)
+    ) {
+      return res.status(400).json({
+        message: "Enter the 6-digit verification code."
+      });
+    }
+
+    const challenge = challenges.get(challengeId);
+
+    if (
+      !challenge ||
+      challenge.channel !== "email" ||
+      challenge.purpose !== "login" ||
+      challenge.used
+    ) {
+      return res.status(400).json({
+        message: "This verification code is no longer valid."
+      });
+    }
+
+    if (Date.now() > challenge.expiresAt) {
+      return res.status(410).json({
+        message: "Your verification code has expired.",
+        expired: true
+      });
+    }
+
+    if (challenge.attempts >= MAX_OTP_ATTEMPTS) {
+      return res.status(429).json({
+        message: "Maximum attempts reached.",
+        maxAttempts: true
+      });
+    }
+
+    challenge.attempts += 1;
+
+    const otpHash = crypto
+      .createHash("sha256")
+      .update(otp)
+      .digest("hex");
+
+    if (otpHash !== challenge.otpHash) {
+      return res.status(401).json({
+        message: "Incorrect verification code.",
+        remainingAttempts:
+          MAX_OTP_ATTEMPTS - challenge.attempts
+      });
+    }
+
+    // OTP is single-use
+    challenge.used = true;
+
+    const user = [...users.values()].find(
+      user => user.id === challenge.userId
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found."
+      });
+    }
+
+    // Create server-side session
+    const sessionId = crypto.randomUUID();
+
+    sessions.set(sessionId, {
+      sessionId,
+      userId: user.id,
+      createdAt: Date.now(),
+      expiresAt:
+        Date.now() +
+        (rememberMe === true
+          ? 7 * 24 * 60 * 60 * 1000
+          : 60 * 60 * 1000)
+    });
+
+    const maxAge =
+      rememberMe === true
+        ? 7 * 24 * 60 * 60
+        : 60 * 60;
+
+    res.cookie(
+      "sessionId",
+      sessionId,
+      {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: maxAge * 1000,
+        path: "/"
+      }
+    );
+
+    return res.json({
+      message: "Login successful.",
+      authenticated: true
+    });
+
+  } catch (error) {
+    console.error(
+      "Login OTP verification error:",
+      error
+    );
+
+    return res.status(500).json({
+      message:
+        "Unable to verify the login code."
     });
   }
 });
