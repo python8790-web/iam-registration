@@ -21,7 +21,7 @@ continueButton.addEventListener(
                     "Registration session expired. Please register again."
                 );
 
-                window.location.href = "/";
+                window.location.href = "/dashboard.html";
 
                 return;
             }

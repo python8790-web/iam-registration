@@ -3,9 +3,11 @@ const path = require("path");
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const cookieParser = require("cookie-parser");
+const jwt = require("jsonwebtoken");
 
 const app = express();
-
+const JWT_SECRET =
+  process.env.JWT_SECRET || crypto.randomBytes(32).toString("hex");
 const PORT = process.env.PORT || 3000;
 app.use(cookieParser());
 
@@ -578,152 +580,10 @@ function createOtpChallenge(user, channel = "email") {
   return challengeId;
 }
 
-app.post("/api/login", async (req, res) => {
-  try {
-    const email =
-      typeof req.body.email === "string"
-        ? req.body.email.trim().toLowerCase()
-        : "";
-    const password =
-      typeof req.body.password === "string"
-        ? req.body.password
-        : "";
-
-    if (!validEmail(email) || !password) {
-      return res.status(400).json({
-        message: "Invalid email or password. Please try again."
-      });
-    }
-
-    const failure = getLoginFailure(email);
-
-    if (failure.lockedUntil > Date.now()) {
-      const seconds = Math.ceil((failure.lockedUntil - Date.now()) / 1000);
-      return res.status(423).json({
-        message: "Too many failed attempts. Please try again later.",
-        locked: true,
-        retryAfterSeconds: seconds
-      });
-    }
-
-    const user = users.get(email);
-    const passwordMatches = user
-      ? await bcrypt.compare(password, user.passwordHash)
-      : false;
-
-    if (!user || !passwordMatches) {
-      const updated = registerLoginFailure(email);
-      const remaining = Math.max(0, MAX_LOGIN_ATTEMPTS - updated.count);
-
-      return res.status(401).json({
-        message: "Invalid email or password. Please try again.",
-        remainingAttempts: remaining
-      });
-    }
-
-    clearLoginFailures(email);
-
-    if (!user.mfaEnabled) {
-      return res.status(403).json({
-        message: "MFA is not enabled for this account yet.",
-        code: "MFA_NOT_ENABLED"
-      });
-    }
-
-    // For now email is the default method, matching the supplied design.
-    const challengeId = createOtpChallenge(user, "email");
-
-    return res.json({
-      message: "Verify your identity.",
-      mfaRequired: true,
-      method: "email",
-      challengeId,
-      maskedEmail: user.email.replace(
-        /^(.{2}).*(@.*)$/,
-        "$1••••$2"
-      )
-    });
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({
-      message: "Unable to process login."
-    });
-  }
-});
-
-app.post("/api/verify-login-otp", (req, res) => {
-  const {
-    challengeId,
-    otp
-  } = req.body;
-
-  if (
-    typeof challengeId !== "string" ||
-    typeof otp !== "string" ||
-    !/^\d{6}$/.test(otp)
-  ) {
-    return res.status(400).json({
-      message: "Enter the 6-digit verification code."
-    });
-  }
-
-  const challenge = challenges.get(challengeId);
-
-  if (!challenge || challenge.used) {
-    return res.status(400).json({
-      message: "This verification code is no longer valid."
-    });
-  }
-
-  if (Date.now() > challenge.expiresAt) {
-    return res.status(410).json({
-      message: "Code expired.",
-      expired: true
-    });
-  }
-
-  if (challenge.attempts >= MAX_OTP_ATTEMPTS) {
-    return res.status(429).json({
-      message: "Maximum attempts reached. Please request a new code.",
-      maxAttempts: true
-    });
-  }
-
-  challenge.attempts += 1;
-
-  const incomingHash = crypto
-    .createHash("sha256")
-    .update(otp)
-    .digest("hex");
-
-  if (incomingHash !== challenge.otpHash) {
-    const remaining = Math.max(0, MAX_OTP_ATTEMPTS - challenge.attempts);
-
-    return res.status(401).json({
-      message: "Incorrect code. Please try again.",
-      remainingAttempts: remaining
-    });
-  }
-
-  challenge.used = true;
-
-  const user = [...users.values()].find(
-    candidate => candidate.id === challenge.userId
+app.get(/^(?!\/api\/).*/, (req, res) => {
+  res.sendFile(
+    path.join(__dirname, "public", "index.html")
   );
-
-  return res.json({
-    message: "Login successful.",
-    authenticated: true,
-    user: {
-      id: user.id,
-      fullName: user.fullName,
-      email: user.email
-    }
-  });
-});
-
-app.get(/.*/, (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 // ===============================
 // LOGIN
@@ -1008,6 +868,221 @@ app.post("/api/verify-login-otp", (req, res) => {
         "Unable to verify the login code."
     });
   }
+});
+// ===============================
+// SESSION AUTHENTICATION
+// ===============================
+
+app.get("/api/me", (req, res) => {
+  try {
+    const sessionId = req.cookies.sessionId;
+
+    if (!sessionId) {
+      return res.status(401).json({
+        authenticated: false,
+        message: "Not authenticated."
+      });
+    }
+
+    const session = sessions.get(sessionId);
+
+    if (!session) {
+      return res.status(401).json({
+        authenticated: false,
+        message: "Session is invalid."
+      });
+    }
+
+    // Check session expiry
+    if (Date.now() > session.expiresAt) {
+      sessions.delete(sessionId);
+
+      res.clearCookie("sessionId", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/"
+      });
+
+      return res.status(401).json({
+        authenticated: false,
+        message: "Session has expired."
+      });
+    }
+
+    const user = [...users.values()].find(
+      candidate => candidate.id === session.userId
+    );
+
+    if (!user) {
+      sessions.delete(sessionId);
+
+      res.clearCookie("sessionId", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/"
+      });
+
+      return res.status(401).json({
+        authenticated: false,
+        message: "User account not found."
+      });
+    }
+
+    return res.json({
+      authenticated: true,
+      user: {
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        mobileNumber: user.mobileNumber,
+        mfaEnabled: user.mfaEnabled
+      }
+    });
+
+  } catch (error) {
+    console.error("GET /api/me error:", error);
+
+    return res.status(500).json({
+      message: "Unable to retrieve account information."
+    });
+  }
+});
+
+
+app.post("/api/logout", (req, res) => {
+  try {
+    const sessionId = req.cookies.sessionId;
+
+    if (sessionId) {
+      sessions.delete(sessionId);
+    }
+
+    res.clearCookie("sessionId", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/"
+    });
+
+    return res.json({
+      message: "Logged out successfully.",
+      authenticated: false
+    });
+
+  } catch (error) {
+    console.error("Logout error:", error);
+
+    return res.status(500).json({
+      message: "Unable to log out."
+    });
+  }
+});
+// ===============================
+// JWT TOKEN
+// ===============================
+
+app.post("/api/token", (req, res) => {
+  try {
+    const sessionId = req.cookies.sessionId;
+
+    if (!sessionId) {
+      return res.status(401).json({
+        message: "Authentication required."
+      });
+    }
+
+    const session = sessions.get(sessionId);
+
+    if (!session) {
+      return res.status(401).json({
+        message: "Invalid session."
+      });
+    }
+
+    if (Date.now() > session.expiresAt) {
+      sessions.delete(sessionId);
+
+      res.clearCookie("sessionId", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/"
+      });
+
+      return res.status(401).json({
+        message: "Session has expired."
+      });
+    }
+
+    const user = [...users.values()].find(
+      candidate => candidate.id === session.userId
+    );
+
+    if (!user) {
+      return res.status(401).json({
+        message: "User not found."
+      });
+    }
+
+    const token = jwt.sign(
+      {
+        sub: user.id,
+        email: user.email
+      },
+      JWT_SECRET,
+      {
+        expiresIn: "15m"
+      }
+    );
+
+    return res.json({
+      tokenType: "Bearer",
+      expiresIn: 900,
+      accessToken: token
+    });
+
+  } catch (error) {
+    console.error("JWT token error:", error);
+
+    return res.status(500).json({
+      message: "Unable to issue access token."
+    });
+  }
+});
+function authenticateJWT(req, res, next) {
+  const authorization = req.headers.authorization;
+
+  if (
+    !authorization ||
+    !authorization.startsWith("Bearer ")
+  ) {
+    return res.status(401).json({
+      message: "Bearer token required."
+    });
+  }
+
+  const token = authorization.substring(7);
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+
+    req.jwtUser = decoded;
+
+    next();
+  } catch (error) {
+    return res.status(401).json({
+      message: "Invalid or expired JWT."
+    });
+  }
+}
+app.get("/api/protected", authenticateJWT, (req, res) => {
+  return res.json({
+    message: "You have accessed a protected API.",
+    authenticated: true,
+    user: req.jwtUser
+  });
 });
 app.listen(PORT, () => {
   console.log(`IAM registration app running at http://localhost:${PORT}`);

@@ -637,7 +637,7 @@ document
         "Change Mobile Number" screen.
       */
 
-      window.location.href = "/";
+      window.location.href = "/dashboard.html";
 
     }
   );

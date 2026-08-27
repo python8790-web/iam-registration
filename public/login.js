@@ -11,6 +11,7 @@ const passwordInput = document.getElementById("password");
 const loginButton = document.getElementById("loginButton");
 const loginError = document.getElementById("loginError");
 const togglePassword = document.getElementById("togglePassword");
+const rememberMeInput = document.getElementById("rememberMe");
 const methods = [...document.querySelectorAll(".method")];
 const otpInputs = [...document.querySelectorAll("#otpInputs input")];
 const otpMessage = document.getElementById("otpMessage");
@@ -70,7 +71,7 @@ document.getElementById("otpBack").addEventListener("click", () => {
 });
 
 document.getElementById("backButton").addEventListener("click", () => {
-  window.location.href = "/";
+  window.location.href = "/dashboard.html";
 });
 
 otpInputs.forEach((input, index) => {
@@ -164,13 +165,17 @@ async function verifyLoginOtp() {
 
   try {
     const response = await fetch("/api/verify-login-otp", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        challengeId: loginChallengeId,
-        otp
-      })
-    });
+  method: "POST",
+  credentials: "include",
+  headers: {
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    challengeId: loginChallengeId,
+    otp,
+    rememberMe: rememberMeInput.checked
+  })
+});
 
     const result = await response.json();
 

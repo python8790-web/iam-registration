@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IAM Dashboard</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+    }
+
+    body {
+      background: #f5f7fb;
+      min-height: 100vh;
+    }
+
+    header {
+      height: 70px;
+      background: white;
+      border-bottom: 1px solid #e5e7eb;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 40px;
+    }
+
+    .logo {
+      font-size: 22px;
+      font-weight: 700;
+      color: #111827;
+    }
+
+    .logout {
+      background: #111827;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    main {
+      max-width: 1000px;
+      margin: 50px auto;
+      padding: 0 20px;
+    }
+
+    h1 {
+      font-size: 30px;
+      margin-bottom: 10px;
+      color: #111827;
+    }
+
+    .subtitle {
+      color: #6b7280;
+      margin-bottom: 30px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+      margin-bottom: 20px;
+    }
+
+    .row {
+      display: flex;
+      justify-content: space-between;
+      padding: 15px 0;
+      border-bottom: 1px solid #eee;
+    }
+
+    .row:last-child {
+      border-bottom: none;
+    }
+
+    .label {
+      color: #6b7280;
+    }
+
+    .value {
+      font-weight: 600;
+      color: #111827;
+    }
+
+    .status {
+      color: #15803d;
+      font-weight: 600;
+    }
+
+    #error {
+      color: #dc2626;
+      text-align: center;
+      margin-top: 50px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <div class="logo">IAM Portal</div>
+
+    <button class="logout" id="logoutBtn">
+      Logout
+    </button>
+  </header>
+
+  <main>
+
+    <h1 id="welcome">Welcome</h1>
+
+    <p class="subtitle">
+      You are successfully authenticated.
+    </p>
+
+    <div class="card">
+
+      <div class="row">
+        <span class="label">Full Name</span>
+        <span class="value" id="fullName">Loading...</span>
+      </div>
+
+      <div class="row">
+        <span class="label">Email</span>
+        <span class="value" id="email">Loading...</span>
+      </div>
+
+      <div class="row">
+        <span class="label">Mobile Number</span>
+        <span class="value" id="mobile">Loading...</span>
+      </div>
+
+      <div class="row">
+        <span class="label">MFA Status</span>
+        <span class="status" id="mfa">Loading...</span>
+      </div>
+
+      <div class="row">
+        <span class="label">Authentication</span>
+        <span class="status">Authenticated ✓</span>
+      </div>
+
+    </div>
+
+    <p id="error"></p>
+
+  </main>
+
+<script>
+
+async function loadUser() {
+
+  try {
+
+    const response = await fetch("/api/me", {
+      credentials: "include"
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || !result.authenticated) {
+
+      window.location.href = "/login.html";
+
+      return;
+    }
+
+    const user = result.user;
+
+    document.getElementById("welcome").textContent =
+      `Welcome, ${user.fullName}`;
+
+    document.getElementById("fullName").textContent =
+      user.fullName;
+
+    document.getElementById("email").textContent =
+      user.email;
+
+    document.getElementById("mobile").textContent =
+      user.mobileNumber;
+
+    document.getElementById("mfa").textContent =
+      user.mfaEnabled ? "Enabled ✓" : "Disabled";
+
+  } catch (error) {
+
+    console.error(error);
+
+    window.location.href = "/login.html";
+  }
+}
+
+
+document
+  .getElementById("logoutBtn")
+  .addEventListener("click", async () => {
+
+    await fetch("/api/logout", {
+      method: "POST",
+      credentials: "include"
+    });
+
+    window.location.href = "/login.html";
+
+  });
+
+
+loadUser();
+
+</script>
+
+</body>
+</html>
